@@ -6,54 +6,26 @@ import (
 )
 
 const (
-	// Maximum number of times to retry SetIfNotExists/CompareAndSwap operations
-	// before returning an error.
+    //CAS重试最大次数
 	maxCASAttempts = 10
 )
 
-// A RateLimiter manages limiting the rate of actions by key.
 type RateLimiter interface {
-	// RateLimit checks whether a particular key has exceeded a rate
-	// limit. It also returns a RateLimitResult to provide additional
-	// information about the state of the RateLimiter.
-	//
-	// If the rate limit has not been exceeded, the underlying storage
-	// is updated by the supplied quantity. For example, a quantity of
-	// 1 might be used to rate limit a single request while a greater
-	// quantity could rate limit based on the size of a file upload in
-	// megabytes. If quantity is 0, no update is performed allowing
-	// you to "peek" at the state of the RateLimiter for a given key.
 	RateLimit(key string, quantity int) (bool, RateLimitResult, error)
 }
 
-// RateLimitResult represents the state of the RateLimiter for a
-// given key at the time of the query. This state can be used, for
-// example, to communicate information to the client via HTTP
-// headers. Negative values indicate that the attribute is not
-// relevant to the implementation or state.
 type RateLimitResult struct {
-	// Limit is the maximum number of requests that could be permitted
-	// instantaneously for this key starting from an empty state. For
-	// example, if a rate limiter allows 10 requests per second per
-	// key, Limit would always be 10.
+	//允许请求数
 	Limit int
 
-	// Remaining is the maximum number of requests that could be
-	// permitted instantaneously for this key given the current
-	// state. For example, if a rate limiter allows 10 requests per
-	// second and has already received 6 requests for this key this
-	// second, Remaining would be 4.
+	//还剩下的令牌数
 	Remaining int
 
-	// ResetAfter is the time until the RateLimiter returns to its
-	// initial state for a given key. For example, if a rate limiter
-	// manages requests per second and received one request 200ms ago,
-	// Reset would return 800ms. You can also think of this as the time
-	// until Limit and Remaining will be equal.
+	//某个计时周期内，还剩下的时间
 	ResetAfter time.Duration
 
-	// RetryAfter is the time until the next request will be permitted.
-	// It should be -1 unless the rate limit has been exceeded.
+	//是允许下一个请求之前的时间
+	//没有被限制时是-1
 	RetryAfter time.Duration
 }
 
