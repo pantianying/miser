@@ -64,3 +64,6 @@ func (f *Filter) GetRateLimiter(key string) (*GCRARateLimiter, bool) {
 	}
 	return l.(*GCRARateLimiter), true
 }
+func (f *Filter) Clean() {
+	f.keyM = sync.Map{}
+}
