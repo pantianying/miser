@@ -1,6 +1,8 @@
 package miser
 
-import "sync"
+import (
+	"sync"
+)
 
 //filter分装了对GCRARateLimiter使用，用户可以实时控制流量
 
@@ -11,7 +13,7 @@ type filter struct {
 	keyM sync.Map
 
 	// 限流回调函数
-	f func()
+	f func(key string)
 }
 
 func NewFilter(store GCRAStore) *filter {
@@ -19,12 +21,46 @@ func NewFilter(store GCRAStore) *filter {
 		st: store,
 	}
 }
-func (f *filter) AddKey(key string, quota RateQuota) {
-	//todo
+
+// 对外暴露的限流方法，false为通过
+func (f *filter) RateLimit(key string) (bool, error) {
+	if l, ok := f.GetRateLimiter(key); ok {
+		b, _, e := l.RateLimit(key, 1)
+		if e == nil {
+			if b && f.f != nil {
+				go f.f(key)
+			}
+			return b, nil
+		}
+		return false, e
+	}
+	//默认通过
+	return false, nil
 }
-func (f *filter) UpdateKey(key string, quota RateQuota) {
-	//todo
+
+func (f *filter) AddKey(key string, quota RateQuota) error {
+	rateLimiter, err := NewGCRARateLimiter(f.st, quota)
+	if err != nil {
+		return err
+	}
+	f.keyM.Store(key, rateLimiter)
+	return nil
 }
-func (f *filter) RateLimit(key string) bool {
-	//todo
+func (f *filter) UpdateKey(key string, quota RateQuota) error {
+	rateLimiter, err := NewGCRARateLimiter(f.st, quota)
+	if err != nil {
+		return err
+	}
+	f.keyM.Store(key, rateLimiter)
+	return nil
+}
+func (f *filter) DeleteKey(key string) {
+	f.keyM.Delete(key)
+}
+func (f *filter) GetRateLimiter(key string) (*GCRARateLimiter, bool) {
+	l, ok := f.keyM.Load(key)
+	if !ok {
+		return nil, false
+	}
+	return l.(*GCRARateLimiter), true
 }
