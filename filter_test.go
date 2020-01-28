@@ -9,7 +9,7 @@ import (
 )
 
 func TestFilter(t *testing.T) {
-	store, err := memstore.New(65536)
+	store, err := memstore.New(65535)
 	if err != nil {
 		log.Fatal(err)
 	}
