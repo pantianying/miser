@@ -3,7 +3,7 @@
 ### how to use it
 
 ```
-	store, err := memstore.New(65535)
+    store, err := memstore.New(65535)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -6,7 +6,7 @@ import (
 )
 
 const (
-    //CAS重试最大次数
+	//CAS重试最大次数
 	maxCASAttempts = 10
 )
 
@@ -47,70 +47,44 @@ func (r *rateLimitResult) Remaining() int            { return r.remaining }
 func (r *rateLimitResult) Reset() time.Duration      { return r.reset }
 func (r *rateLimitResult) RetryAfter() time.Duration { return r.retryAfter }
 
-// Rate describes a frequency of an activity such as the number of requests
-// allowed per minute.
+// Rate表述请求速率，单位时间内允许的请求数量
 type Rate struct {
-	period time.Duration // Time between equally spaced requests at the rate
-	count  int           // Used internally for deprecated `RateLimit` interface only
+	period time.Duration
+	count  int
 }
 
-// RateQuota describes the number of requests allowed per time period.
-// MaxRate specified the maximum sustained rate of requests and must
-// be greater than zero. MaxBurst defines the number of requests that
-// will be allowed to exceed the rate in a single burst and must be
-// greater than or equal to zero.
-//
-// Rate{PerSec(1), 0} would mean that after each request, no more
-// requests will be permitted for that client for one second.
-// Rate{PerSec(2), 0} permits one request per 0.5 seconds rather than
-// two requests in one second. In practice, you probably want to set
-// MaxBurst >0 to provide some flexibility to clients that only need
-// to make a handful of requests. In fact a MaxBurst of zero will
-// *never* permit a request with a quantity greater than one because
-// it will immediately exceed the limit.
+// RateQuota描述每个时间段允许的请求数。
+// MaxRate指定请求的最大持续速率，并且必须大于0。
+// MaxBurst定义将允许在单个突发中超过速率，并且必须大于或等于零
+// --------------------!!!注意!!!--------------------
+// Rate{PerSec(1), 0}表示1秒允许1个请求，Rate{PerSec(2), 0}表示0.5秒允许1个请求
+// 所以，一般情况下MaxBurst必须大于0，预留足够的起始缓冲空间。
 type RateQuota struct {
 	MaxRate  Rate
 	MaxBurst int
 }
 
-// PerSec represents a number of requests per second.
 func PerSec(n int) Rate { return Rate{time.Second / time.Duration(n), n} }
 
-// PerMin represents a number of requests per minute.
 func PerMin(n int) Rate { return Rate{time.Minute / time.Duration(n), n} }
 
-// PerHour represents a number of requests per hour.
 func PerHour(n int) Rate { return Rate{time.Hour / time.Duration(n), n} }
 
-// PerDay represents a number of requests per day.
 func PerDay(n int) Rate { return Rate{24 * time.Hour / time.Duration(n), n} }
 
-// GCRARateLimiter is a RateLimiter that users the generic cell-rate
-// algorithm. The algorithm has been slightly modified from its usual
-// form to support limiting with an additional quantity parameter, such
-// as for limiting the number of bytes uploaded.
+// cell-rate算法
 type GCRARateLimiter struct {
 	limit int
 
-	// Think of the DVT as our flexibility:
-	// How far can you deviate from the nominal equally spaced schedule?
-	// If you like leaky buckets, think about it as the size of your bucket.
+	// 可以理解为水桶size
 	delayVariationTolerance time.Duration
 
-	// Think of the emission interval as the time between events
-	// in the nominal equally spaced schedule. If you like leaky buckets,
-	// think of it as how frequently the bucket leaks one unit.
+	//令牌频率
 	emissionInterval time.Duration
 
 	store GCRAStore
 }
 
-// NewGCRARateLimiter creates a GCRARateLimiter. quota.Count defines
-// the maximum number of requests permitted in an instantaneous burst
-// and quota.Count / quota.Period defines the maximum sustained
-// rate. For example, PerMin(60) permits 60 requests instantly per key
-// followed by one request per second indefinitely whereas PerSec(1)
-// only permits one request per second with no tolerance for bursts.
 func NewGCRARateLimiter(st GCRAStore, quota RateQuota) (*GCRARateLimiter, error) {
 	if quota.MaxBurst < 0 {
 		return nil, fmt.Errorf("Invalid RateQuota %#v. MaxBurst must be greater than zero.", quota)
@@ -127,16 +101,7 @@ func NewGCRARateLimiter(st GCRAStore, quota RateQuota) (*GCRARateLimiter, error)
 	}, nil
 }
 
-// RateLimit checks whether a particular key has exceeded a rate
-// limit. It also returns a RateLimitResult to provide additional
-// information about the state of the RateLimiter.
-//
-// If the rate limit has not been exceeded, the underlying storage is
-// updated by the supplied quantity. For example, a quantity of 1
-// might be used to rate limit a single request while a greater
-// quantity could rate limit based on the size of a file upload in
-// megabytes. If quantity is 0, no update is performed allowing you
-// to "peek" at the state of the RateLimiter for a given key.
+//RateLimit检查key是否已超过速率
 func (g *GCRARateLimiter) RateLimit(key string, quantity int) (bool, RateLimitResult, error) {
 	var tat, newTat, now time.Time
 	var ttl time.Duration
@@ -149,8 +114,7 @@ func (g *GCRARateLimiter) RateLimit(key string, quantity int) (bool, RateLimitRe
 		var tatVal int64
 		var updated bool
 
-		// tat refers to the theoretical arrival time that would be expected
-		// from equally spaced requests at exactly the rate limit.
+		// tat 预计到达时间
 		tatVal, now, err = g.store.GetWithTime(key)
 		if err != nil {
 			return false, rlc, err
@@ -169,7 +133,7 @@ func (g *GCRARateLimiter) RateLimit(key string, quantity int) (bool, RateLimitRe
 			newTat = tat.Add(increment)
 		}
 
-		// Block the request if the next permitted time is in the future
+		// 如果下一个允许时间在将来，那么block
 		allowAt := newTat.Add(-(g.delayVariationTolerance))
 		if diff := now.Sub(allowAt); diff < 0 {
 			if increment <= g.delayVariationTolerance {
