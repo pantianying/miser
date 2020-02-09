@@ -29,12 +29,7 @@ type GoRedisStore struct {
 	prefix string
 }
 
-// New creates a new Redis-based store, using the provided pool to get
-// its connections. The keys will have the specified keyPrefix, which
-// may be an empty string, and the database index specified by db will
-// be selected to store the keys. Any updating operations will reset
-// the key TTL to the provided value rounded down to the nearest
-// second. Depends on Redis 2.6+ for EVAL support.
+// Depends on Redis 2.6+ for EVAL support.
 func New(client *redis.Client, keyPrefix string) (*GoRedisStore, error) {
 	return &GoRedisStore{
 		client: client,
@@ -42,9 +37,6 @@ func New(client *redis.Client, keyPrefix string) (*GoRedisStore, error) {
 	}, nil
 }
 
-// GetWithTime returns the value of the key if it is in the store
-// or -1 if it does not exist. It also returns the current time at
-// the redis server to microsecond precision.
 func (r *GoRedisStore) GetWithTime(key string) (int64, time.Time, error) {
 	key = r.prefix + key
 
@@ -93,11 +85,7 @@ func (r *GoRedisStore) SetIfNotExistsWithTTL(key string, value int64, ttl time.D
 	return updated, err
 }
 
-// CompareAndSwapWithTTL atomically compares the value at key to the
-// old value. If it matches, it sets it to the new value and returns
-// true. Otherwise, it returns false. If the key does not exist in the
-// store, it returns false with no error. If the swap succeeds, the
-// ttl for the key is updated atomically.
+// match return true,not return false,atomically
 func (r *GoRedisStore) CompareAndSwapWithTTL(key string, old, new int64, ttl time.Duration) (bool, error) {
 	key = r.prefix + key
 

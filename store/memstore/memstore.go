@@ -90,10 +90,7 @@ func (ms *MemStore) SetIfNotExistsWithTTL(key string, value int64, _ time.Durati
 	return true, nil
 }
 
-// CompareAndSwapWithTTL atomically compares the value at key to the
-// old value. If it matches, it sets it to the new value and returns
-// true. Otherwise, it returns false. If the key does not exist in the
-// store, it returns false with no error. It ignores the ttl.
+// match return true,not return false,atomically
 func (ms *MemStore) CompareAndSwapWithTTL(key string, old, new int64, _ time.Duration) (bool, error) {
 	valP, ok := ms.get(key, false)
 
